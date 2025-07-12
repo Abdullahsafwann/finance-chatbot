@@ -56,24 +56,29 @@ HTML_TEMPLATE = """
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+            height: 100vh;
+            padding: 10px;
+            overflow: hidden;
         }
         
         .container {
-            max-width: 900px;
+            max-width: 95%;
+            width: 100%;
+            height: 90vh;
             margin: 0 auto;
             background: rgba(255, 255, 255, 0.95);
             border-radius: 20px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
             overflow: hidden;
             backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
         }
         
         .header {
             background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
             color: white;
-            padding: 30px;
+            padding: 15px 20px;
             text-align: center;
             position: relative;
         }
@@ -89,15 +94,8 @@ HTML_TEMPLATE = """
         }
         
         .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .header p {
-            font-size: 1.1em;
-            opacity: 0.9;
+            font-size: 1.5em;
+            margin: 0;
             position: relative;
             z-index: 1;
         }
@@ -105,8 +103,8 @@ HTML_TEMPLATE = """
         .chat-container {
             display: flex;
             flex-direction: column;
-            height: 70vh;
-            min-height: 500px;
+            flex: 1;
+            min-height: 0;
         }
         
         .chat-history {
@@ -114,8 +112,6 @@ HTML_TEMPLATE = """
             overflow-y: auto;
             padding: 20px;
             background: #f8f9fa;
-            max-height: calc(70vh - 120px);
-            min-height: 300px;
         }
         
         .chat-history::-webkit-scrollbar {
@@ -332,24 +328,20 @@ HTML_TEMPLATE = """
         /* Responsive Design */
         @media (max-width: 768px) {
             body {
-                padding: 10px;
+                padding: 5px;
             }
             
             .container {
                 border-radius: 15px;
+                height: 95vh;
             }
             
             .header {
-                padding: 20px;
+                padding: 10px 15px;
             }
             
             .header h1 {
-                font-size: 2em;
-            }
-            
-            .chat-container {
-                height: 60vh;
-                min-height: 400px;
+                font-size: 1.3em;
             }
             
             .message-bubble {
@@ -367,11 +359,7 @@ HTML_TEMPLATE = """
         
         @media (max-width: 480px) {
             .header h1 {
-                font-size: 1.8em;
-            }
-            
-            .header p {
-                font-size: 1em;
+                font-size: 1.2em;
             }
             
             .message-bubble {
@@ -384,6 +372,10 @@ HTML_TEMPLATE = """
                 height: 35px;
                 font-size: 1em;
             }
+            
+            .container {
+                height: 98vh;
+            }
         }
     </style>
 </head>
@@ -391,7 +383,6 @@ HTML_TEMPLATE = """
     <div class="container">
         <div class="header">
             <h1><i class="fas fa-chart-line"></i> Finance Chatbot</h1>
-            <p>Your AI-powered financial assistant</p>
         </div>
         
         <div class="chat-container">
@@ -442,13 +433,6 @@ HTML_TEMPLATE = """
                         <i class="fas fa-paper-plane"></i>
                     </button>
                 </form>
-                {% if chat_history and chat_history|length > 0 %}
-                    <div style="margin-top: 10px; text-align: center;">
-                        <button onclick="clearChat()" class="clear-button">
-                            <i class="fas fa-trash"></i> Clear Chat
-                        </button>
-                    </div>
-                {% endif %}
             </div>
         </div>
     </div>
