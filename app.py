@@ -5,6 +5,7 @@ import logging
 from dotenv import load_dotenv
 import markdown2
 from datetime import datetime
+import re
 
 # Load environment variables
 load_dotenv()
@@ -113,6 +114,8 @@ HTML_TEMPLATE = """
             overflow-y: auto;
             padding: 20px;
             background: #f8f9fa;
+            max-height: calc(70vh - 120px);
+            min-height: 300px;
         }
         
         .chat-history::-webkit-scrollbar {
@@ -393,31 +396,34 @@ HTML_TEMPLATE = """
         
         <div class="chat-container">
             <div class="chat-history" id="chatHistory">
-                {% if chat_history %}
-                    {% for role, content, timestamp in chat_history %}
-                        <div class="message">
-                            {% if role == 'user' %}
-                                <div class="user-message">
-                                    <div class="message-bubble user-bubble">
-                                        <div>{{ content }}</div>
-                                        <div class="message-time">{{ timestamp }}</div>
+                {% if chat_history and chat_history|length > 0 %}
+                    {% for message in chat_history %}
+                        {% if message|length >= 3 %}
+                            {% set role, content, timestamp = message[0], message[1], message[2] %}
+                            <div class="message">
+                                {% if role == 'user' %}
+                                    <div class="user-message">
+                                        <div class="message-bubble user-bubble">
+                                            <div>{{ content }}</div>
+                                            <div class="message-time">{{ timestamp }}</div>
+                                        </div>
+                                        <div class="message-avatar user-avatar">
+                                            <i class="fas fa-user"></i>
+                                        </div>
                                     </div>
-                                    <div class="message-avatar user-avatar">
-                                        <i class="fas fa-user"></i>
+                                {% else %}
+                                    <div class="bot-message">
+                                        <div class="message-avatar bot-avatar">
+                                            <i class="fas fa-robot"></i>
+                                        </div>
+                                        <div class="message-bubble bot-bubble">
+                                            <div class="markdown">{{ content | safe }}</div>
+                                            <div class="message-time">{{ timestamp }}</div>
+                                        </div>
                                     </div>
-                                </div>
-                            {% else %}
-                                <div class="bot-message">
-                                    <div class="message-avatar bot-avatar">
-                                        <i class="fas fa-robot"></i>
-                                    </div>
-                                    <div class="message-bubble bot-bubble">
-                                        <div class="markdown">{{ content | safe }}</div>
-                                        <div class="message-time">{{ timestamp }}</div>
-                                    </div>
-                                </div>
-                            {% endif %}
-                        </div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
                     {% endfor %}
                 {% else %}
                     <div class="empty-state">
@@ -436,7 +442,7 @@ HTML_TEMPLATE = """
                         <i class="fas fa-paper-plane"></i>
                     </button>
                 </form>
-                {% if chat_history %}
+                {% if chat_history and chat_history|length > 0 %}
                     <div style="margin-top: 10px; text-align: center;">
                         <button onclick="clearChat()" class="clear-button">
                             <i class="fas fa-trash"></i> Clear Chat
@@ -448,33 +454,140 @@ HTML_TEMPLATE = """
     </div>
 
     <script>
-        // Auto-scroll to bottom of chat
+        // Auto-scroll to bottom of chat only for new messages
+        let shouldScrollToBottom = true;
+        
         function scrollToBottom() {
             const chatHistory = document.getElementById('chatHistory');
-            chatHistory.scrollTop = chatHistory.scrollHeight;
+            if (shouldScrollToBottom) {
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+        }
+        
+        // Check if user has scrolled up
+        function checkScroll() {
+            const chatHistory = document.getElementById('chatHistory');
+            const threshold = 100; // pixels from bottom
+            shouldScrollToBottom = (chatHistory.scrollTop + chatHistory.clientHeight + threshold >= chatHistory.scrollHeight);
         }
         
         // Clear chat history
         function clearChat() {
             if (confirm('Are you sure you want to clear the chat history?')) {
                 fetch('/clear', { method: 'POST' })
-                    .then(() => location.reload());
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            location.reload();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error clearing chat:', error);
+                        location.reload();
+                    });
             }
         }
         
-        // Auto-scroll on page load
-        window.addEventListener('load', scrollToBottom);
+        // Initialize event listeners
+        window.addEventListener('load', function() {
+            const chatHistory = document.getElementById('chatHistory');
+            
+            // Add scroll listener to detect if user scrolled up
+            chatHistory.addEventListener('scroll', checkScroll);
+            
+            // Initially scroll to bottom if there are messages
+            const messages = chatHistory.querySelectorAll('.message');
+            if (messages.length > 0) {
+                setTimeout(scrollToBottom, 100);
+            }
+        });
         
-        // Auto-scroll after form submission
-        document.querySelector('form').addEventListener('submit', function() {
-            setTimeout(scrollToBottom, 100);
+        // Handle form submission
+        document.querySelector('form').addEventListener('submit', function(e) {
+            // Set flag to scroll to bottom for new messages
+            shouldScrollToBottom = true;
+            
+            // Clear the input field after submission
+            setTimeout(function() {
+                document.querySelector('.input-field').value = '';
+            }, 100);
         });
         
         // Auto-resize input field
         const inputField = document.querySelector('.input-field');
-        inputField.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = this.scrollHeight + 'px';
+        if (inputField) {
+            inputField.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = this.scrollHeight + 'px';
+            });
+        }
+        
+        // Add visual feedback for scroll position
+        function updateScrollIndicator() {
+            const chatHistory = document.getElementById('chatHistory');
+            const isAtBottom = chatHistory.scrollTop + chatHistory.clientHeight >= chatHistory.scrollHeight - 10;
+            
+            if (!isAtBottom && chatHistory.scrollHeight > chatHistory.clientHeight) {
+                if (!document.querySelector('.scroll-indicator')) {
+                    const indicator = document.createElement('div');
+                    indicator.className = 'scroll-indicator';
+                    indicator.innerHTML = '<i class="fas fa-chevron-down"></i>';
+                    indicator.style.cssText = `
+                        position: absolute;
+                        bottom: 80px;
+                        right: 30px;
+                        background: rgba(102, 126, 234, 0.9);
+                        color: white;
+                        width: 40px;
+                        height: 40px;
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                        z-index: 1000;
+                        animation: bounce 2s infinite;
+                    `;
+                    indicator.onclick = function() {
+                        shouldScrollToBottom = true;
+                        scrollToBottom();
+                    };
+                    document.querySelector('.container').style.position = 'relative';
+                    document.querySelector('.container').appendChild(indicator);
+                }
+            } else {
+                const indicator = document.querySelector('.scroll-indicator');
+                if (indicator) {
+                    indicator.remove();
+                }
+            }
+        }
+        
+        // Add bounce animation for scroll indicator
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes bounce {
+                0%, 20%, 50%, 80%, 100% {
+                    transform: translateY(0);
+                }
+                40% {
+                    transform: translateY(-10px);
+                }
+                60% {
+                    transform: translateY(-5px);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // Update scroll indicator on scroll
+        document.addEventListener('DOMContentLoaded', function() {
+            const chatHistory = document.getElementById('chatHistory');
+            if (chatHistory) {
+                chatHistory.addEventListener('scroll', updateScrollIndicator);
+                setTimeout(updateScrollIndicator, 500);
+            }
         });
     </script>
 </body>
@@ -483,25 +596,38 @@ HTML_TEMPLATE = """
 
 @app.route("/", methods=["GET"])
 def index():
-    session.setdefault("chat_history", [])
+    if "chat_history" not in session:
+        session["chat_history"] = []
     return render_template_string(HTML_TEMPLATE, chat_history=session["chat_history"])
 
 @app.route("/chat", methods=["POST"])
 def chat():
     user_input = request.form.get("user_input", "").strip()
     if not user_input:
-        return render_template_string(HTML_TEMPLATE, chat_history=session["chat_history"])
+        return render_template_string(HTML_TEMPLATE, chat_history=session.get("chat_history", []))
+
+    # Initialize chat history if not exists
+    if "chat_history" not in session:
+        session["chat_history"] = []
 
     # Add timestamp to messages
     timestamp = datetime.now().strftime("%I:%M %p")
     session["chat_history"].append(("user", user_input, timestamp))
 
-    # Prepare messages for AI
+    # Prepare messages for AI (only use message content, not timestamps)
     messages = [{"role": "system", "content": "You are a helpful and professional financial assistant. Only answer finance, investment, or economics-related questions. Provide clear, accurate, and helpful information."}]
     
     # Add conversation history (without timestamps for AI)
-    for role, content, _ in session["chat_history"]:
-        messages.append({"role": role if role != 'bot' else 'assistant', "content": content})
+    for item in session["chat_history"]:
+        if len(item) >= 2:  # Ensure we have at least role and content
+            role, content = item[0], item[1]
+            if role == "user":
+                messages.append({"role": "user", "content": content})
+            elif role == "bot":
+                # Strip HTML tags for AI context
+                import re
+                clean_content = re.sub('<[^<]+?>', '', content)
+                messages.append({"role": "assistant", "content": clean_content})
 
     payload = {
         "messages": messages,
@@ -523,17 +649,22 @@ def chat():
         bot_timestamp = datetime.now().strftime("%I:%M %p")
         session["chat_history"].append(("bot", reply_html, bot_timestamp))
         
+        # Mark session as modified to ensure it's saved
+        session.modified = True
+        
     except Exception as e:
         logger.error(f"API error: {e}")
         error_msg = "❌ Sorry, something went wrong while getting a response. Please try again."
         error_timestamp = datetime.now().strftime("%I:%M %p")
         session["chat_history"].append(("bot", error_msg, error_timestamp))
+        session.modified = True
 
     return render_template_string(HTML_TEMPLATE, chat_history=session["chat_history"])
 
 @app.route("/clear", methods=["POST"])
 def clear_chat():
     session["chat_history"] = []
+    session.modified = True
     return jsonify({"status": "success"})
 
 if __name__ == "__main__":
